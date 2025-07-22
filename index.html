@@ -1,0 +1,270 @@
+<!DOCTYPE html>
+<html lang="en" >
+<head>
+  <meta charset="UTF-8">
+  <title>Untitled</title>
+  
+
+</head>
+<body>
+<!-- partial:index.partial.html -->
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Crosshair Shoot + ScrollReveal</title>
+  <style>
+    html, body {
+      margin: 0;
+      padding: 0;
+      background: black;
+      color: white;
+      font-family: 'Arial', sans-serif;
+      overflow-x: hidden;
+    }
+
+    .container, #scrollSection {
+      width: 100%;
+      height: 100vh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      flex-direction: column;
+    }
+
+    canvas {
+      max-width: 90vw;
+      max-height: 30vh;
+    }
+
+    #targetText {
+      font-size: 2rem;
+      font-weight: bold;
+      display: none;
+      transition: color 0.3s;
+    }
+
+    .cursor {
+      position: fixed;
+      top: 0; left: 0;
+      width: 100%; height: 100%;
+      pointer-events: none;
+      z-index: 1000;
+      display: none;
+    }
+
+    .cursor-line {
+      position: absolute;
+      background: violet;
+      pointer-events: none;
+    }
+
+    .horizontal { height: 1px; width: 100%; transform: translateY(50%); }
+    .vertical { width: 1px; height: 100%; transform: translateX(50%); }
+
+    #scrollContent {
+      font-size: clamp(1.6rem, 4vw, 3rem);
+      line-height: 1.5;
+      font-weight: 600;
+      padding: 60px;
+      text-align: center;
+    }
+
+    .word {
+      display: inline-block;
+      white-space: pre;
+    }
+  </style>
+</head>
+<body>
+
+  <div class="container" id="container">
+    <canvas id="fuzzyText"></canvas>
+    <div id="targetText">You won't.</div>
+  </div>
+
+  <div class="cursor" id="crosshair">
+    <svg style="position:absolute;left:0;top:0;width:0;height:0">
+      <defs>
+        <filter id="filter-noise-x">
+          <feTurbulence type="fractalNoise" baseFrequency="0.000001" numOctaves="1" id="fx" />
+          <feDisplacementMap in="SourceGraphic" scale="40" />
+        </filter>
+        <filter id="filter-noise-y">
+          <feTurbulence type="fractalNoise" baseFrequency="0.000001" numOctaves="1" id="fy" />
+          <feDisplacementMap in="SourceGraphic" scale="40" />
+        </filter>
+      </defs>
+    </svg>
+    <div class="cursor-line horizontal" id="lineH"></div>
+    <div class="cursor-line vertical" id="lineV"></div>
+  </div>
+
+  <div id="scrollSection" style="display: none; height: 200vh; background: black;">
+    <div id="scrollContent">You don't love me ? Why? Why? Why? Why? Why? Why? Why? Why? Why? Why? Why? Why? Why? Why? Why? Why? Why? Why? Why? Why? Why? Why? Why? Why?</div>
+  </div>
+
+  <script src="https://cdn.jsdelivr.net/npm/gsap@3.12.5/dist/gsap.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/gsap@3.12.5/dist/ScrollTrigger.min.js"></script>
+
+  <script>
+    const canvas = document.getElementById("fuzzyText");
+    const ctx = canvas.getContext("2d");
+    const text = "You won't find anything here.";
+    const fontSize = 64;
+    const fontWeight = 900;
+    const color = "#fff";
+    const fuzzRange = 30;
+    const intensity = 0.2;
+
+    function drawFuzzyText() {
+      const off = document.createElement("canvas");
+      const offCtx = off.getContext("2d");
+      ctx.font = `${fontWeight} ${fontSize}px sans-serif`;
+      ctx.textBaseline = "top";
+
+      const metrics = ctx.measureText(text);
+      const width = Math.ceil(metrics.width + 20);
+      const height = Math.ceil(fontSize * 1.4);
+
+      canvas.width = width;
+      canvas.height = height;
+
+      off.width = width;
+      off.height = height;
+
+      offCtx.font = `${fontWeight} ${fontSize}px sans-serif`;
+      offCtx.fillStyle = color;
+      offCtx.textBaseline = "top";
+      offCtx.fillText(text, 10, 0);
+
+      function render() {
+        ctx.clearRect(0, 0, width, height);
+        for (let j = 0; j < height; j++) {
+          const dx = Math.floor(intensity * (Math.random() - 0.5) * fuzzRange);
+          ctx.drawImage(off, 0, j, width, 1, dx, j, width, 1);
+        }
+        requestAnimationFrame(render);
+      }
+
+      render();
+    }
+
+    drawFuzzyText();
+
+    const targetText = document.getElementById("targetText");
+    const crosshair = document.getElementById("crosshair");
+    const lineH = document.getElementById("lineH");
+    const lineV = document.getElementById("lineV");
+    const fx = document.getElementById("fx");
+    const fy = document.getElementById("fy");
+
+    let mouse = { x: 0, y: 0 };
+    let pos = { x: 0, y: 0 };
+    let clickedOnce = false;
+    let targeted = false;
+    let shooted = false;
+
+    const lerp = (a, b, n) => (1 - n) * a + n * b;
+
+    document.addEventListener("mousemove", e => {
+      mouse.x = e.clientX;
+      mouse.y = e.clientY;
+    });
+
+    function renderCrosshair() {
+      pos.x = lerp(pos.x, mouse.x, 0.15);
+      pos.y = lerp(pos.y, mouse.y, 0.15);
+
+      lineH.style.top = `${pos.y}px`;
+      lineV.style.left = `${pos.x}px`;
+
+      if (!shooted && clickedOnce) {
+        const rect = targetText.getBoundingClientRect();
+        const inside = pos.x >= rect.left && pos.x <= rect.right && pos.y >= rect.top && pos.y <= rect.bottom;
+
+        targeted = inside;
+
+        if (inside) {
+          targetText.textContent = "Shoot !";
+          targetText.style.color = "violet";
+        } else {
+          targetText.textContent = "You won't";
+          targetText.style.color = "white";
+        }
+      }
+
+      requestAnimationFrame(renderCrosshair);
+    }
+
+    function animateFilter() {
+      let freq = 1;
+      const interval = setInterval(() => {
+        freq -= 0.05;
+        if (freq <= 0) {
+          freq = 0;
+          clearInterval(interval);
+          launchScrollReveal();
+        }
+        fx.setAttribute("baseFrequency", freq);
+        fy.setAttribute("baseFrequency", freq);
+        lineH.style.filter = "url(#filter-noise-x)";
+        lineV.style.filter = "url(#filter-noise-y)";
+      }, 30);
+    }
+
+    function launchScrollReveal() {
+      document.getElementById('container').style.display = 'none';
+      document.getElementById('crosshair').style.display = 'none';
+      const section = document.getElementById('scrollSection');
+      section.style.display = 'flex';
+
+      const content = document.getElementById('scrollContent');
+      const words = content.innerText.trim().split(/\s+/);
+      content.innerHTML = ''; // clear
+
+      words.forEach((word, i) => {
+        const span = document.createElement('span');
+        span.className = 'word';
+        span.textContent = word + ' ';
+        content.appendChild(span);
+      });
+
+      gsap.fromTo('.word',
+        { opacity: 0.1, filter: "blur(4px)", rotate: 3 },
+        {
+          opacity: 1,
+          filter: "blur(0px)",
+          rotate: 0,
+          stagger: 0.05,
+          ease: "none",
+          scrollTrigger: {
+            trigger: section,
+            start: "top bottom",
+            end: "bottom top",
+            scrub: true
+          }
+        }
+      );
+    }
+
+    document.addEventListener("click", () => {
+      if (!clickedOnce) {
+        clickedOnce = true;
+        canvas.style.display = "none";
+        targetText.style.display = "block";
+        crosshair.style.display = "block";
+        renderCrosshair();
+      } else if (targeted && !shooted) {
+        shooted = true;
+        animateFilter();
+      }
+    });
+  </script>
+</body>
+</html>
+<!-- partial -->
+  
+</body>
+</html>
